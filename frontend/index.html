@@ -88,8 +88,60 @@
 
       <!-- Members -->
       <div class="tab-pane d-none" id="tab-members">
-        <input type="text" id="memberSearch" class="form-control form-control-sm w-auto d-inline-block mb-2" placeholder="ค้นหาเลขสมาชิก/ชื่อ" onkeyup="if(event.key==='Enter')loadMembers()">
-        <button class="btn btn-sm btn-outline-secondary mb-2" onclick="loadMembers()">ค้นหา</button>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <input type="text" id="memberSearch" class="form-control form-control-sm w-auto" placeholder="ค้นหาเลขสมาชิก/ชื่อ" onkeyup="if(event.key==='Enter')loadMembers()">
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadMembers()">ค้นหา</button>
+          <button class="btn btn-sm btn-success ms-auto d-none" id="importToggleBtn" onclick="toggleImportPanel()">+ นำเข้าสมาชิก</button>
+        </div>
+
+        <!-- Member import (ADMIN_FULL) -->
+        <div class="card p-3 mb-3 d-none" id="importPanel">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">นำเข้าสมาชิก</h6>
+            <button type="button" class="btn-close" aria-label="ปิด" onclick="toggleImportPanel(false)"></button>
+          </div>
+          <ul class="nav nav-pills nav-sm mb-3" id="importModeTabs">
+            <li class="nav-item"><button class="nav-link active py-1" data-imode="file">จากไฟล์ Excel / CSV</button></li>
+            <li class="nav-item"><button class="nav-link py-1" data-imode="single">เพิ่มทีละคน</button></li>
+          </ul>
+
+          <div id="importFilePane">
+            <p class="hint mb-2">รองรับ .xlsx / .xls / .csv — ไฟล์ถูกอ่านในเบราว์เซอร์นี้ และส่งขึ้นระบบเฉพาะคอลัมน์ที่เลือกด้านล่าง
+              (บัญชีธนาคาร เงินเดือน หุ้น ฯลฯ จะไม่ถูกส่ง) · <a href="#" onclick="downloadImportTemplate(); return false;">ดาวน์โหลดไฟล์ตัวอย่าง</a></p>
+            <div class="row g-2 align-items-end mb-2">
+              <div class="col-md-6"><input type="file" class="form-control form-control-sm" id="importFile" accept=".xlsx,.xls,.csv"></div>
+              <div class="col-md-3 d-none" id="importSheetWrap">
+                <select class="form-select form-select-sm" id="importSheet" aria-label="เลือกชีต"></select>
+              </div>
+              <div class="col-md-3">
+                <select class="form-select form-select-sm" id="importHeaderRow" aria-label="แถวหัวตาราง">
+                  <option value="1">หัวตารางอยู่แถวที่ 1</option><option value="2">หัวตารางอยู่แถวที่ 2</option>
+                  <option value="3">หัวตารางอยู่แถวที่ 3</option><option value="0">ไม่มีหัวตาราง</option>
+                </select>
+              </div>
+            </div>
+            <div id="importMapping" class="d-none"></div>
+            <div id="importPreview"></div>
+          </div>
+
+          <form id="importSinglePane" class="d-none" onsubmit="return doImportSingle(event)">
+            <div class="row g-2">
+              <div class="col-6 col-md-3"><label class="form-label small mb-0">เลขที่สมาชิก *</label><input class="form-control form-control-sm" name="MemberNo" required maxlength="20" inputmode="numeric" placeholder="00020"></div>
+              <div class="col-6 col-md-2"><label class="form-label small mb-0">คำนำหน้า</label><input class="form-control form-control-sm" name="Title" maxlength="30" list="titleList"></div>
+              <div class="col-6 col-md-3"><label class="form-label small mb-0">ชื่อ</label><input class="form-control form-control-sm" name="FirstName" maxlength="100"></div>
+              <div class="col-6 col-md-4"><label class="form-label small mb-0">นามสกุล</label><input class="form-control form-control-sm" name="LastName" maxlength="100"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">เลขบัตรประชาชน</label><input class="form-control form-control-sm" name="NationalId" maxlength="17" inputmode="numeric" placeholder="13 หลัก"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">สังกัด</label><input class="form-control form-control-sm" name="Affiliation" maxlength="150"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">เบอร์โทร</label><input class="form-control form-control-sm" name="Phone" maxlength="12" inputmode="tel"></div>
+              <div class="col-6 col-md-4"><label class="form-label small mb-0">วันที่เข้า (วว/ดด/ปปปป พ.ศ.)</label><input class="form-control form-control-sm" name="JoinDate" placeholder="30/11/2535"></div>
+              <div class="col-6 col-md-4"><label class="form-label small mb-0">วันเกิด (วว/ดด/ปปปป พ.ศ.)</label><input class="form-control form-control-sm" name="BirthDate" placeholder="22/05/2508"></div>
+              <div class="col-md-4 d-flex align-items-end"><button class="btn btn-sm btn-primary w-100" id="importSingleBtn">บันทึกสมาชิก</button></div>
+            </div>
+            <p class="hint mt-2 mb-0">ถ้าเลขที่สมาชิกมีอยู่แล้ว ระบบจะอัปเดตเฉพาะช่องที่กรอก (ช่องว่างไม่ลบค่าเดิม)</p>
+            <datalist id="titleList"><option value="นาย"><option value="นาง"><option value="นางสาว"></datalist>
+          </form>
+        </div>
+
         <div class="table-wrap">
           <table class="table table-sm table-hover bg-white">
             <thead><tr><th>เลขที่สมาชิก</th><th>ชื่อ-สกุล</th><th>สังกัด</th><th>ผูก LINE แล้ว</th></tr></thead>
@@ -130,5 +182,6 @@
   <script src="assets/config.js"></script>
   <script src="assets/api.js"></script>
   <script src="assets/admin.js"></script>
+  <script src="assets/member-import.js"></script>
 </body>
 </html>

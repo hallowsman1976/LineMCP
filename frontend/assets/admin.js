@@ -129,6 +129,7 @@ function bootApp() {
   var isFull = ROLE === 'ADMIN_FULL';
   document.getElementById('adminsTabItem').classList.toggle('d-none', !isFull);
   document.getElementById('settingsLink').classList.toggle('d-none', !isFull);
+  document.getElementById('importToggleBtn').classList.toggle('d-none', !isFull);
 
   switchTab('inbox');
   loadThreads();
