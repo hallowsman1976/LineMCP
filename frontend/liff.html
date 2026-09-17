@@ -17,6 +17,15 @@
     .muted { color: #888; }
     .center { text-align: center; padding: 40px 16px; color: #888; }
     .btn { display: inline-block; margin-top: 12px; padding: 10px 20px; border: 0; border-radius: 8px; background: #06c755; color: #fff; font: inherit; }
+    .btn-outline { background: #fff; color: #06c755; border: 1px solid #06c755; }
+    .btn[disabled] { opacity: .6; }
+    .profile-row { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #eee; flex: none; }
+    .field { margin-top: 10px; }
+    .field label { display: block; font-size: .85rem; color: #555; margin-bottom: 4px; }
+    .field input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font: inherit; }
+    .error-text { color: #d3302f; font-size: .9rem; margin-top: 8px; }
+    .secondary { margin-top: 18px; padding-top: 14px; border-top: 1px solid #f0f0f0; font-size: .85rem; }
   </style>
 </head>
 <body>
@@ -31,6 +40,72 @@
     function show(html) { document.getElementById('app').innerHTML = html; }
 
     function card(html) { return '<div class="card">' + html + '</div>'; }
+
+    function profileRow(profile, fallbackName) {
+      return '<div class="profile-row">' +
+        (profile && profile.pictureUrl ? '<img class="avatar" src="' + esc(profile.pictureUrl) + '" alt="">' : '') +
+        '<h5>สวัสดีคุณ' + esc((profile && profile.displayName) || fallbackName || '') + '</h5></div>';
+    }
+
+    function renderVerified(profile, m, claims) {
+      var claimsHtml = '<div class="center">ยังไม่มีประวัติ</div>';
+      if (claims.length) {
+        claimsHtml = claims.map(function (c) {
+          return '<div class="row-line"><span>' + esc(c.TypeLabel) + '<br><small class="muted">' +
+            esc(c.SubmittedAt ? new Date(c.SubmittedAt).toLocaleDateString('th-TH') : '-') + '</small></span>' +
+            '<span class="badge">' + esc(STATUS_LABEL[c.Status] || c.Status) + '</span></div>';
+        }).join('');
+      }
+      show(
+        card(profileRow(profile, m.DisplayName) + '<span class="badge">สมาชิกเลขที่ ' + esc(m.MemberNo) + '</span>') +
+        card('<div class="row-line"><span>สังกัด</span><span>' + esc(m.Affiliation || '-') + '</span></div>' +
+          '<div class="row-line"><span>อายุการเป็นสมาชิก</span><span>' + (m.YearsOfMembership != null ? esc(m.YearsOfMembership) + ' ปี' : '-') + '</span></div>') +
+        card('<h5>ประวัติการยื่นขอสวัสดิการ</h5>' + claimsHtml)
+      );
+    }
+
+    function renderUnverified(profile, decoded, idToken, errorMsg) {
+      show(
+        card(profileRow(profile, decoded.name || 'สมาชิก')) +
+        card(
+          '<p class="muted">ยังไม่ได้ยืนยันตัวตนสมาชิก กรอกเลขที่สมาชิกและเลขบัตรประชาชนเพื่อยืนยัน</p>' +
+          (errorMsg ? '<p class="error-text">' + esc(errorMsg) + '</p>' : '') +
+          '<form id="linkForm">' +
+            '<div class="field"><label>เลขที่สมาชิก</label><input name="memberNo" required autocomplete="off"></div>' +
+            '<div class="field"><label>เลขประจำตัวประชาชน (13 หลัก)</label><input name="nationalId" required inputmode="numeric" maxlength="13" autocomplete="off"></div>' +
+            '<button type="submit" class="btn">ยืนยันตัวตน</button>' +
+          '</form>' +
+          '<div class="secondary muted">หรือกลับไปที่แชทของสหกรณ์ แล้วพิมพ์ "เลขที่สมาชิก เลขบัตรประชาชน" เพื่อยืนยันตัวตนก็ได้' +
+            (liff.isInClient() ? '<br><button class="btn btn-outline" onclick="liff.closeWindow()">กลับไปที่แชท</button>' : '') +
+          '</div>'
+        )
+      );
+
+      document.getElementById('linkForm').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var form = ev.target;
+        var memberNo = form.memberNo.value.trim();
+        var nationalId = form.nationalId.value.trim();
+        var btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = 'กำลังยืนยัน...';
+        lmcp.api('linkMember', { idToken: idToken, memberNo: memberNo, nationalId: nationalId }).then(function (res) {
+          if (!res.ok) {
+            renderUnverified(profile, decoded, idToken, res.message);
+            return;
+          }
+          return lmcp.api('getMyStatus', { idToken: idToken }).then(function (statusRes) {
+            if (statusRes.ok) {
+              renderVerified(profile, statusRes.member, statusRes.claims);
+            } else {
+              renderVerified(profile, res.member, []);
+            }
+          });
+        }).catch(function (err) {
+          renderUnverified(profile, decoded, idToken, err.message || 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่');
+        });
+      });
+    }
 
     async function getLiffId() {
       if (lmcp.config.LIFF_ID) return lmcp.config.LIFF_ID;
@@ -54,6 +129,9 @@
         return;
       }
       var decoded = liff.getDecodedIDToken() || {};
+      var profile = null;
+      try { profile = await liff.getProfile(); } catch (e) { /* scope "profile" อาจยังไม่เปิด — แสดงหน้าต่อได้โดยไม่มีรูป */ }
+
       var res = await lmcp.api('getMyStatus', { idToken: idToken });
 
       // ID token ที่ LIFF cache ไว้อาจหมดอายุ (เปิดแอปค้างไว้นาน) — login ใหม่ 1 ครั้งเพื่อขอ token ใหม่
@@ -65,31 +143,12 @@
       try { sessionStorage.removeItem('lmcp_liff_relogin'); } catch (e) {}
 
       if (!res.ok) {
-        show(
-          card('<h5>' + esc(decoded.name || 'สมาชิก') + '</h5>') +
-          card('<p class="muted">' + esc(res.message) + '</p>' +
-            '<p>กรุณากลับไปที่แชทของสหกรณ์ แล้วพิมพ์ "เลขที่สมาชิก เลขบัตรประชาชน" เพื่อยืนยันตัวตนก่อน</p>' +
-            (liff.isInClient() ? '<button class="btn" onclick="liff.closeWindow()">กลับไปที่แชท</button>' : ''))
-        );
+        // ข้อความ "ยังไม่ได้ยืนยันตัวตนสมาชิก" เป็นกรณีปกติ (ซ้ำกับข้อความในฟอร์มอยู่แล้ว) ส่วนข้อความอื่นคือ error ที่ไม่คาดคิด ควรโชว์ให้เห็น
+        renderUnverified(profile, decoded, idToken, res.message === 'ยังไม่ได้ยืนยันตัวตนสมาชิก' ? null : res.message);
         return;
       }
 
-      var m = res.member;
-      var claimsHtml = '<div class="center">ยังไม่มีประวัติ</div>';
-      if (res.claims.length) {
-        claimsHtml = res.claims.map(function (c) {
-          return '<div class="row-line"><span>' + esc(c.TypeLabel) + '<br><small class="muted">' +
-            esc(c.SubmittedAt ? new Date(c.SubmittedAt).toLocaleDateString('th-TH') : '-') + '</small></span>' +
-            '<span class="badge">' + esc(STATUS_LABEL[c.Status] || c.Status) + '</span></div>';
-        }).join('');
-      }
-
-      show(
-        card('<h5>สวัสดีคุณ' + esc(m.DisplayName) + '</h5><span class="badge">สมาชิกเลขที่ ' + esc(m.MemberNo) + '</span>') +
-        card('<div class="row-line"><span>สังกัด</span><span>' + esc(m.Affiliation || '-') + '</span></div>' +
-          '<div class="row-line"><span>อายุการเป็นสมาชิก</span><span>' + (m.YearsOfMembership != null ? esc(m.YearsOfMembership) + ' ปี' : '-') + '</span></div>') +
-        card('<h5>ประวัติการยื่นขอสวัสดิการ</h5>' + claimsHtml)
-      );
+      renderVerified(profile, res.member, res.claims);
     }
 
     boot().catch(function (err) {

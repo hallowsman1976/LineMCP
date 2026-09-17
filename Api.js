@@ -46,7 +46,8 @@ var API_ACTIONS = {
   importMembers: function (a) { return importMembers_(a.token, a.rows, a.mode); },
 
   // ---------- สมาชิก (LIFF) — ยืนยันตัวตนด้วย LINE ID token ไม่เชื่อ userId ที่ client ส่งมาเอง ----------
-  getMyStatus: function (a) { return getMyStatusApi_(a.idToken); }
+  getMyStatus: function (a) { return getMyStatusApi_(a.idToken); },
+  linkMember: function (a) { return linkMemberApi_(a.idToken, a.memberNo, a.nationalId); }
 };
 
 function isApiRequest_(e) {
@@ -135,6 +136,22 @@ function getMyStatusApi_(idToken) {
     return { ok: true, member: memberRes.member, claims: claimsRes.ok ? claimsRes.claims : [] };
   } catch (err) {
     return { ok: false, message: translateError_(err) };
+  }
+}
+
+/** หน้า "สถานะของฉัน" — ฟอร์มยืนยันตัวตนในหน้า LIFF (คู่ขนานกับการพิมพ์ยืนยันในแชท) */
+function linkMemberApi_(idToken, memberNo, nationalId) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { ok: false, message: 'ระบบกำลังประมวลผลคำขออื่น กรุณาลองใหม่ในอีกสักครู่' };
+  try {
+    var lineUserId = verifyLineIdToken_(idToken);
+    verifyAndLinkMember_(lineUserId, memberNo, nationalId);
+    var profileRes = getMyMemberProfile_(lineUserId); // sanitize + คำนวณ DisplayName/YearsOfMembership แบบเดียวกับ getMyStatus
+    return { ok: true, member: profileRes.member };
+  } catch (err) {
+    return { ok: false, message: translateError_(err) };
+  } finally {
+    lock.releaseLock();
   }
 }
 
