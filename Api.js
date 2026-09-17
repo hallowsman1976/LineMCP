@@ -27,6 +27,7 @@ var API_ACTIONS = {
   logoutAdmin: function (a) { return logoutAdmin_(a.token); },
   listAdmins: function (a) { return listAdmins_(a.token); },
   addAdmin: function (a) { return addAdmin_(a.token, a.lineUserId, a.displayName, a.role); },
+  editAdmin: function (a) { return editAdmin_(a.token, a.lineUserId, a.displayName, a.role); },
   setAdminActive: function (a) { return setAdminActive_(a.token, a.lineUserId, a.active); },
 
   listChatThreads: function (a) { return listChatThreads_(a.token); },

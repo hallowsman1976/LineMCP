@@ -380,21 +380,52 @@ function loadAdmins() {
       var active = String(a.Active) !== 'false';
       return '<tr><td><code>' + esc(a.LineUserId) + '</code></td><td>' + esc(a.DisplayName) + '</td><td>' + (a.Role === 'ADMIN_FULL' ? 'แอดมินเต็ม' : 'เจ้าหน้าที่ตอบแชท') +
         '</td><td>' + (active ? 'เปิดใช้งาน' : 'ปิดใช้งาน') + '</td>' +
-        '<td><button class="btn btn-sm btn-outline-secondary" data-id="' + esc(a.LineUserId) + '" data-activate="' + (!active) + '">' +
+        '<td class="text-nowrap">' +
+        '<button class="btn btn-sm btn-outline-primary me-1" data-edit-id="' + esc(a.LineUserId) + '" data-name="' + esc(a.DisplayName) + '" data-role="' + esc(a.Role) + '">แก้ไข</button>' +
+        '<button class="btn btn-sm btn-outline-secondary" data-toggle-id="' + esc(a.LineUserId) + '" data-activate="' + (!active) + '">' +
         (active ? 'ปิดใช้งาน' : 'เปิดใช้งาน') + '</button></td></tr>';
     }).join('');
   }).catch(onNetErr);
 }
 
 document.getElementById('adminsBody').addEventListener('click', function (ev) {
-  var b = ev.target.closest('button[data-id]');
+  var editBtn = ev.target.closest('button[data-edit-id]');
+  if (editBtn) return doEditAdmin(editBtn.dataset.editId, editBtn.dataset.name, editBtn.dataset.role);
+
+  var b = ev.target.closest('button[data-toggle-id]');
   if (!b) return;
   b.disabled = true;
-  api('setAdminActive', { token: TOKEN, lineUserId: b.dataset.id, active: b.dataset.activate === 'true' }).then(function (res) {
+  api('setAdminActive', { token: TOKEN, lineUserId: b.dataset.toggleId, active: b.dataset.activate === 'true' }).then(function (res) {
     if (!res.ok) { b.disabled = false; return showError(res); }
     loadAdmins();
   }).catch(function (err) { b.disabled = false; onNetErr(err); });
 });
+
+function doEditAdmin(lineUserId, currentName, currentRole) {
+  Swal.fire({
+    title: 'แก้ไขแอดมิน',
+    html:
+      '<p class="hint text-start mb-2">LINE User ID: <code>' + esc(lineUserId) + '</code></p>' +
+      '<input id="swalEditName" class="swal2-input" placeholder="ชื่อที่แสดง" value="' + esc(currentName) + '">' +
+      '<select id="swalEditRole" class="swal2-select">' +
+      '<option value="ADMIN_FULL"' + (currentRole === 'ADMIN_FULL' ? ' selected' : '') + '>แอดมินเต็ม</option>' +
+      '<option value="CHAT_STAFF"' + (currentRole === 'CHAT_STAFF' ? ' selected' : '') + '>เจ้าหน้าที่ตอบแชท</option>' +
+      '</select>',
+    showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
+    showLoaderOnConfirm: true,
+    preConfirm: function () {
+      var displayName = document.getElementById('swalEditName').value.trim();
+      var role = document.getElementById('swalEditRole').value;
+      return api('editAdmin', { token: TOKEN, lineUserId: lineUserId, displayName: displayName, role: role })
+        .catch(function (err) { return { ok: false, message: err.message }; });
+    }
+  }).then(function (r) {
+    if (!r.isConfirmed) return;
+    if (!r.value.ok) return showError(r.value);
+    Swal.fire('บันทึกแล้ว', '', 'success');
+    loadAdmins();
+  });
+}
 
 function doAddAdmin() {
   var id = document.getElementById('newAdminId').value.trim();

@@ -190,12 +190,50 @@ function setAdminActive_(token, lineUserId, active) {
     var sheet = getSheet_(SHEET_NAMES.ADMIN_ALLOWLIST);
     var entry = findAllowlistEntry_(lineUserId);
     if (!entry) throw new Error('ไม่พบรายชื่อนี้');
+    if (!active && !otherActiveAdminFullsExist_(lineUserId)) {
+      throw new Error('ปิดใช้งานไม่ได้ — นี่คือแอดมินเต็มที่เปิดใช้งานอยู่คนสุดท้าย ระบบจะไม่มีใครเข้าจัดการได้อีก');
+    }
     updateRowByHeaders_(sheet, entry.__rowIndex, { Active: !!active });
     SpreadsheetApp.flush();
     return { ok: true };
   } catch (err) {
     return { ok: false, message: translateError_(err) };
   }
+}
+
+/** แก้ชื่อที่แสดง/สิทธิ์ของแอดมินที่มีอยู่แล้ว (LINE User ID แก้ไม่ได้ — ลบแล้วเพิ่มใหม่แทนถ้าผูกผิดคน) */
+function editAdmin_(token, lineUserId, displayName, role) {
+  try {
+    var admin = requireAdminSession_(token);
+    requireRole_(admin, [ROLES.ADMIN_FULL]);
+    if ([ROLES.ADMIN_FULL, ROLES.CHAT_STAFF].indexOf(role) === -1) throw new Error('role ไม่ถูกต้อง');
+    var sheet = getSheet_(SHEET_NAMES.ADMIN_ALLOWLIST);
+    var entry = findAllowlistEntry_(lineUserId);
+    if (!entry) throw new Error('ไม่พบรายชื่อนี้');
+
+    var isActive = String(entry.Active) !== 'false' && entry.Active !== false;
+    if (entry.Role === ROLES.ADMIN_FULL && isActive && role !== ROLES.ADMIN_FULL && !otherActiveAdminFullsExist_(lineUserId)) {
+      throw new Error('ลดสิทธิ์ไม่ได้ — นี่คือแอดมินเต็มที่เปิดใช้งานอยู่คนสุดท้าย ระบบจะไม่มีใครเข้าจัดการได้อีก');
+    }
+
+    updateRowByHeaders_(sheet, entry.__rowIndex, {
+      DisplayName: String(displayName || '').replace(/\s+/g, ' ').trim().slice(0, 100),
+      Role: role
+    });
+    SpreadsheetApp.flush();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: translateError_(err) };
+  }
+}
+
+/** มีแอดมินเต็มที่เปิดใช้งานอยู่คนอื่น (นอกจาก lineUserId ที่กำลังจะถูกปิด/ลดสิทธิ์) หรือไม่ — กันล็อกระบบตัวเองตาย */
+function otherActiveAdminFullsExist_(lineUserId) {
+  var rows = readSheet_(getSheet_(SHEET_NAMES.ADMIN_ALLOWLIST));
+  return rows.some(function (r) {
+    return r.LineUserId && r.LineUserId !== lineUserId && r.Role === ROLES.ADMIN_FULL &&
+      String(r.Active) !== 'false' && r.Active !== false;
+  });
 }
 
 /** ล้าง session ที่หมดอายุ — ตั้ง time-driven trigger รายวันให้เรียกฟังก์ชันนี้ (ดู initializeProject) */
