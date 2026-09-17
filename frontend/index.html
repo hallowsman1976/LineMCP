@@ -89,8 +89,8 @@
       <!-- Members -->
       <div class="tab-pane d-none" id="tab-members">
         <div class="d-flex flex-wrap gap-2 mb-2">
-          <input type="text" id="memberSearch" class="form-control form-control-sm w-auto" placeholder="ค้นหาเลขสมาชิก/ชื่อ" onkeyup="if(event.key==='Enter')loadMembers()">
-          <button class="btn btn-sm btn-outline-secondary" onclick="loadMembers()">ค้นหา</button>
+          <input type="text" id="memberSearch" class="form-control form-control-sm w-auto" placeholder="ค้นหาเลขสมาชิก/ชื่อ" onkeyup="if(event.key==='Enter')loadMembers(1)">
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadMembers(1)">ค้นหา</button>
           <button class="btn btn-sm btn-success ms-auto d-none" id="importToggleBtn" onclick="toggleImportPanel()">+ นำเข้าสมาชิก</button>
         </div>
 
@@ -147,6 +147,10 @@
             <thead><tr><th>เลขที่สมาชิก</th><th>ชื่อ-สกุล</th><th>สังกัด</th><th>ผูก LINE แล้ว</th></tr></thead>
             <tbody id="membersBody"></tbody>
           </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="hint" id="membersSummary"></span>
+          <nav><ul class="pagination pagination-sm mb-0" id="membersPagination"></ul></nav>
         </div>
       </div>
 

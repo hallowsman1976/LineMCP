@@ -148,7 +148,10 @@ function memberDisplayName_(member) {
 
 // ---------- Admin RPC ----------
 
-function listMembers_(token, query) {
+var MEMBERS_PAGE_SIZE_DEFAULT = 25;
+var MEMBERS_PAGE_SIZE_MAX = 100;
+
+function listMembers_(token, query, page, pageSize) {
   try {
     var admin = requireAdminSession_(token);
     requireRole_(admin, [ROLES.ADMIN_FULL, ROLES.CHAT_STAFF]);
@@ -161,7 +164,21 @@ function listMembers_(token, query) {
           String(m.NationalId).indexOf(q) !== -1;
       });
     }
-    return { ok: true, members: sanitizeForClient_(rows).slice(0, 200) };
+    rows.sort(function (a, b) { return String(a.MemberNo).localeCompare(String(b.MemberNo), 'th', { numeric: true }); });
+
+    var size = Math.min(MEMBERS_PAGE_SIZE_MAX, Math.max(1, Number(pageSize) || MEMBERS_PAGE_SIZE_DEFAULT));
+    var totalPages = Math.max(1, Math.ceil(rows.length / size));
+    var p = Math.min(totalPages, Math.max(1, Number(page) || 1));
+    var start = (p - 1) * size;
+
+    return {
+      ok: true,
+      members: sanitizeForClient_(rows.slice(start, start + size)),
+      page: p,
+      pageSize: size,
+      total: rows.length,
+      totalPages: totalPages
+    };
   } catch (err) {
     Logger.log('[listMembers_] ' + (err.stack || err));
     return { ok: false, message: translateError_(err) };

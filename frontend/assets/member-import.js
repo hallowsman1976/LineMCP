@@ -400,7 +400,7 @@
       Swal.fire('บันทึกแล้ว', (res.inserted ? 'เพิ่มสมาชิกใหม่' : 'อัปเดตข้อมูลสมาชิก') + ' เลขที่ ' + o.MemberNo, 'success');
       form.reset();
       $('memberSearch').value = o.MemberNo;
-      loadMembers();
+      loadMembers(1);
     }).catch(onNetErr).finally(function () { btn.disabled = false; });
     return false;
   };

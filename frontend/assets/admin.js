@@ -151,7 +151,7 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.remove('d-none');
   if (tab === 'welfare') loadClaims();
   if (tab === 'slips') loadSlips();
-  if (tab === 'members') loadMembers();
+  if (tab === 'members') loadMembers(1);
   if (tab === 'admins') loadAdmins();
 }
 
@@ -319,17 +319,56 @@ document.getElementById('slipsBody').addEventListener('click', function (ev) {
 
 // ---------- Members ----------
 
-function loadMembers() {
+var MEMBERS_PAGE_SIZE = 25;
+var membersPage = 1;
+
+/** page ไม่ระบุ = โหลดหน้าปัจจุบันซ้ำ (เช่นหลังนำเข้าสมาชิกเสร็จ); ค้นหาใหม่ให้เรียก loadMembers(1) */
+function loadMembers(page) {
+  if (page != null) membersPage = page;
   var q = document.getElementById('memberSearch').value;
   loadingRow('membersBody', 4);
-  api('listMembers', { token: TOKEN, query: q }).then(function (res) {
+  api('listMembers', { token: TOKEN, query: q, page: membersPage, pageSize: MEMBERS_PAGE_SIZE }).then(function (res) {
     if (!res.ok) return showError(res);
+    membersPage = res.page;
     document.getElementById('membersBody').innerHTML = res.members.map(function (m) {
       return '<tr><td>' + esc(m.MemberNo) + '</td><td>' + esc((m.Title || '') + (m.FirstName || '') + ' ' + (m.LastName || '')) +
         '</td><td>' + esc(m.Affiliation || '') + '</td><td>' + (m.LineUserId ? '✅' : '—') + '</td></tr>';
     }).join('') || '<tr><td colspan="4" class="text-center text-muted py-3">ไม่มีรายการ</td></tr>';
+    renderMembersPagination(res);
   }).catch(onNetErr);
 }
+
+function renderMembersPagination(res) {
+  var summary = document.getElementById('membersSummary');
+  if (!res.total) { summary.textContent = ''; document.getElementById('membersPagination').innerHTML = ''; return; }
+  var from = (res.page - 1) * res.pageSize + 1, to = Math.min(res.page * res.pageSize, res.total);
+  summary.textContent = 'แสดง ' + from + '-' + to + ' จาก ' + res.total + ' คน';
+
+  var pages = [];
+  var add = function (p, label, disabled, active) {
+    pages.push('<li class="page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '') + '">' +
+      '<a href="#" class="page-link" data-page="' + p + '">' + label + '</a></li>');
+  };
+  add(res.page - 1, '‹', res.page <= 1, false);
+  var window_ = 2;
+  for (var p = 1; p <= res.totalPages; p++) {
+    if (p === 1 || p === res.totalPages || Math.abs(p - res.page) <= window_) {
+      add(p, String(p), false, p === res.page);
+    } else if (p === 2 || p === res.totalPages - 1) {
+      pages.push('<li class="page-item disabled"><span class="page-link">…</span></li>');
+    }
+  }
+  add(res.page + 1, '›', res.page >= res.totalPages, false);
+  document.getElementById('membersPagination').innerHTML = pages.join('');
+}
+
+document.getElementById('membersPagination').addEventListener('click', function (ev) {
+  ev.preventDefault();
+  var a = ev.target.closest('a[data-page]');
+  if (!a || a.closest('.disabled')) return;
+  var p = Number(a.dataset.page);
+  if (p >= 1) loadMembers(p);
+});
 
 // ---------- Admins ----------
 

@@ -41,7 +41,7 @@ var API_ACTIONS = {
   listPaymentSlips: function (a) { return listPaymentSlips_(a.token, a.status); },
   markSlipRecorded: function (a) { return markSlipRecorded_(a.token, a.slipId); },
 
-  listMembers: function (a) { return listMembers_(a.token, a.query); },
+  listMembers: function (a) { return listMembers_(a.token, a.query, a.page, a.pageSize); },
   importMembers: function (a) { return importMembers_(a.token, a.rows, a.mode); },
 
   // ---------- สมาชิก (LIFF) — ยืนยันตัวตนด้วย LINE ID token ไม่เชื่อ userId ที่ client ส่งมาเอง ----------
