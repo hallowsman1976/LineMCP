@@ -41,6 +41,16 @@
 
     function card(html) { return '<div class="card">' + html + '</div>'; }
 
+    function chatBackButtonHtml() {
+      if (liff.isInClient()) {
+        return '<button class="btn btn-outline" onclick="liff.closeWindow()">กลับไปที่แชท</button>';
+      }
+      var basicId = lmcp.config.OA_BASIC_ID || '';
+      if (!basicId) return '';
+      var url = 'https://line.me/R/ti/p/' + encodeURIComponent(basicId);
+      return '<a class="btn btn-outline" href="' + esc(url) + '" target="_blank" rel="noopener" style="text-decoration:none;">กลับไปที่แชท</a>';
+    }
+
     function profileRow(profile, fallbackName) {
       return '<div class="profile-row">' +
         (profile && profile.pictureUrl ? '<img class="avatar" src="' + esc(profile.pictureUrl) + '" alt="">' : '') +
@@ -60,7 +70,8 @@
         card(profileRow(profile, m.DisplayName) + '<span class="badge">สมาชิกเลขที่ ' + esc(m.MemberNo) + '</span>') +
         card('<div class="row-line"><span>สังกัด</span><span>' + esc(m.Affiliation || '-') + '</span></div>' +
           '<div class="row-line"><span>อายุการเป็นสมาชิก</span><span>' + (m.YearsOfMembership != null ? esc(m.YearsOfMembership) + ' ปี' : '-') + '</span></div>') +
-        card('<h5>ประวัติการยื่นขอสวัสดิการ</h5>' + claimsHtml)
+        card('<h5>ประวัติการยื่นขอสวัสดิการ</h5>' + claimsHtml) +
+        (chatBackButtonHtml() ? card(chatBackButtonHtml()) : '')
       );
     }
 
@@ -76,7 +87,7 @@
             '<button type="submit" class="btn">ยืนยันตัวตน</button>' +
           '</form>' +
           '<div class="secondary muted">หรือกลับไปที่แชทของสหกรณ์ แล้วพิมพ์ "เลขที่สมาชิก เลขบัตรประชาชน" เพื่อยืนยันตัวตนก็ได้' +
-            (liff.isInClient() ? '<br><button class="btn btn-outline" onclick="liff.closeWindow()">กลับไปที่แชท</button>' : '') +
+            '<br>' + chatBackButtonHtml() +
           '</div>'
         )
       );

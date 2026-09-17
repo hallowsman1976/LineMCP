@@ -7,5 +7,8 @@ window.LMCP_CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyYJIpaIasNQCWcdaIjFDZ3j6z3uuSadYW-lkn2oh6RsottDIte_EREbgAC08-gCfCF/exec',
 
   // LIFF ID ของหน้า "สถานะของฉัน" — เว้นว่างได้ (หน้า liff.html จะไปดึงจาก backend แทน แต่เปิดช้ากว่า)
-  LIFF_ID: ''
+  LIFF_ID: '',
+
+  // Basic ID ของ LINE OA สหกรณ์ (ขึ้นต้นด้วย @) — ใช้ทำปุ่ม "กลับไปที่แชท" ตอนเปิดหน้านี้นอกแอป LINE (liff.closeWindow ใช้ไม่ได้)
+  OA_BASIC_ID: '@iif7702s'
 };
