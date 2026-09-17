@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>สมาชิกสหกรณ์ - สถานะของฉัน</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: 'Sarabun', sans-serif; margin: 0; background: #f4f6f9; color: #222; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    h5 { margin: 0 0 8px; font-size: 1.1rem; }
+    .row-line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: .95rem; }
+    .row-line:last-child { border-bottom: 0; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: .8rem; background: #eee; white-space: nowrap; align-self: center; }
+    .muted { color: #888; }
+    .center { text-align: center; padding: 40px 16px; color: #888; }
+    .btn { display: inline-block; margin-top: 12px; padding: 10px 20px; border: 0; border-radius: 8px; background: #06c755; color: #fff; font: inherit; }
+  </style>
+</head>
+<body>
+  <div id="app"><div class="center">กำลังโหลด...</div></div>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script>
+    var esc = lmcp.esc;
+    var STATUS_LABEL = { DRAFT: 'รอส่งเอกสาร', SUBMITTED: 'รอตรวจสอบ', UNDER_REVIEW: 'กำลังตรวจสอบ', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', PAID: 'จ่ายเงินแล้ว' };
+
+    function show(html) { document.getElementById('app').innerHTML = html; }
+
+    function card(html) { return '<div class="card">' + html + '</div>'; }
+
+    async function getLiffId() {
+      if (lmcp.config.LIFF_ID) return lmcp.config.LIFF_ID;
+      var cfg = await lmcp.api('getPublicConfig', {});
+      return cfg.liffId || '';
+    }
+
+    async function boot() {
+      var liffId = await getLiffId();
+      if (!liffId) {
+        show('<div class="center">ยังไม่ได้ตั้งค่า LIFF_ID (ตั้งค่าที่หน้า setup.html หรือ assets/config.js)</div>');
+        return;
+      }
+      await liff.init({ liffId: liffId });
+      if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+
+      // ส่ง ID token ให้ backend ตรวจกับ LINE เอง — ไม่ส่ง userId ตรง ๆ (ปลอมได้)
+      var idToken = liff.getIDToken();
+      if (!idToken) {
+        show('<div class="center">LIFF app ยังไม่ได้เปิด scope "openid" — แจ้งผู้ดูแลระบบให้เปิดใน LINE Developers Console</div>');
+        return;
+      }
+      var decoded = liff.getDecodedIDToken() || {};
+      var res = await lmcp.api('getMyStatus', { idToken: idToken });
+
+      // ID token ที่ LIFF cache ไว้อาจหมดอายุ (เปิดแอปค้างไว้นาน) — login ใหม่ 1 ครั้งเพื่อขอ token ใหม่
+      if (!res.ok && /ยืนยันตัวตนกับ LINE/.test(res.message || '')) {
+        var retried = false;
+        try { retried = sessionStorage.getItem('lmcp_liff_relogin') === '1'; sessionStorage.setItem('lmcp_liff_relogin', '1'); } catch (e) {}
+        if (!retried) { liff.logout(); liff.login({ redirectUri: location.href }); return; }
+      }
+      try { sessionStorage.removeItem('lmcp_liff_relogin'); } catch (e) {}
+
+      if (!res.ok) {
+        show(
+          card('<h5>' + esc(decoded.name || 'สมาชิก') + '</h5>') +
+          card('<p class="muted">' + esc(res.message) + '</p>' +
+            '<p>กรุณากลับไปที่แชทของสหกรณ์ แล้วพิมพ์ "เลขที่สมาชิก เลขบัตรประชาชน" เพื่อยืนยันตัวตนก่อน</p>' +
+            (liff.isInClient() ? '<button class="btn" onclick="liff.closeWindow()">กลับไปที่แชท</button>' : ''))
+        );
+        return;
+      }
+
+      var m = res.member;
+      var claimsHtml = '<div class="center">ยังไม่มีประวัติ</div>';
+      if (res.claims.length) {
+        claimsHtml = res.claims.map(function (c) {
+          return '<div class="row-line"><span>' + esc(c.TypeLabel) + '<br><small class="muted">' +
+            esc(c.SubmittedAt ? new Date(c.SubmittedAt).toLocaleDateString('th-TH') : '-') + '</small></span>' +
+            '<span class="badge">' + esc(STATUS_LABEL[c.Status] || c.Status) + '</span></div>';
+        }).join('');
+      }
+
+      show(
+        card('<h5>สวัสดีคุณ' + esc(m.DisplayName) + '</h5><span class="badge">สมาชิกเลขที่ ' + esc(m.MemberNo) + '</span>') +
+        card('<div class="row-line"><span>สังกัด</span><span>' + esc(m.Affiliation || '-') + '</span></div>' +
+          '<div class="row-line"><span>อายุการเป็นสมาชิก</span><span>' + (m.YearsOfMembership != null ? esc(m.YearsOfMembership) + ' ปี' : '-') + '</span></div>') +
+        card('<h5>ประวัติการยื่นขอสวัสดิการ</h5>' + claimsHtml)
+      );
+    }
+
+    boot().catch(function (err) {
+      show('<div class="center">เกิดข้อผิดพลาด: ' + esc(err.message || err) +
+        '<br><button class="btn" onclick="location.reload()">ลองใหม่</button></div>');
+    });
+  </script>
+</body>
+</html>

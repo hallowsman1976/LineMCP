@@ -1,0 +1,5 @@
+# clasp push เฉพาะโค้ด backend ที่ root เท่านั้น
+# frontend/ (GitHub Pages), _legacy_htmlservice/, .agents/, skills-lock.json ฯลฯ ห้ามขึ้น Apps Script
+**/**
+!appsscript.json
+!*.js

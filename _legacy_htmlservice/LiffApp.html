@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: 'Sarabun', sans-serif; margin: 0; background: #f4f6f9; color: #222; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    h5 { margin: 0 0 8px; }
+    .row-line { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: .9rem; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: .78rem; background: #eee; }
+    .center { text-align: center; padding: 40px 16px; color: #888; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="center">กำลังโหลด...</div>
+  </div>
+
+  <script>
+    var LIFF_ID = <?!= JSON.stringify(liffId) ?>;
+
+    // กัน race condition: หน้าเว็บโหลด/รัน inline script เร็วกว่า Apps Script bridge (google.script.run) จะพร้อมใช้
+    function waitForGasRun_() {
+      return new Promise(function (resolve, reject) {
+        var tries = 0;
+        (function check() {
+          if (window.google && window.google.script && window.google.script.run) return resolve();
+          if (++tries > 100) return reject(new Error('เชื่อมต่อระบบไม่สำเร็จ กรุณารีเฟรชหน้าใหม่ (Apps Script bridge โหลดไม่ทัน)'));
+          setTimeout(check, 50);
+        })();
+      });
+    }
+
+    function rpc(name) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return waitForGasRun_().then(function () {
+        return new Promise(function (resolve, reject) {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[name].apply(null, args);
+        });
+      });
+    }
+
+    var STATUS_LABEL = { DRAFT: 'รอส่งเอกสาร', SUBMITTED: 'รอตรวจสอบ', UNDER_REVIEW: 'กำลังตรวจสอบ', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', PAID: 'จ่ายเงินแล้ว' };
+
+    function render(profileHtml, memberHtml, claimsHtml) {
+      document.getElementById('app').innerHTML =
+        '<div class="card">' + profileHtml + '</div>' +
+        '<div class="card">' + memberHtml + '</div>' +
+        '<div class="card"><h5>ประวัติการยื่นขอสวัสดิการ</h5>' + claimsHtml + '</div>';
+    }
+
+    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+    async function boot() {
+      if (!LIFF_ID) {
+        document.getElementById('app').innerHTML = '<div class="center">ยังไม่ได้ตั้งค่า LIFF_ID (ไปตั้งค่าที่หน้า ?page=setup)</div>';
+        return;
+      }
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) { liff.login(); return; }
+
+      var profile = await liff.getProfile();
+      var memberRes = await rpc('getMyMemberProfile', profile.userId);
+
+      if (!memberRes.ok) {
+        render(
+          '<h5>' + esc(profile.displayName) + '</h5>',
+          '<p class="text-muted">' + esc(memberRes.message) + '</p><p>กรุณากลับไปที่แชทของสหกรณ์ แล้วพิมพ์ "เลขที่สมาชิก เลขบัตรประชาชน" เพื่อยืนยันตัวตนก่อน</p>',
+          ''
+        );
+        return;
+      }
+
+      var m = memberRes.member;
+      var claimsRes = await rpc('listMyClaims', profile.userId);
+      var claimsHtml = '<div class="center">ยังไม่มีประวัติ</div>';
+      if (claimsRes.ok && claimsRes.claims.length) {
+        claimsHtml = claimsRes.claims.map(function (c) {
+          return '<div class="row-line"><span>' + esc(c.TypeLabel) + '<br><small class="text-muted">' +
+            new Date(c.SubmittedAt).toLocaleDateString('th-TH') + '</small></span>' +
+            '<span class="badge">' + (STATUS_LABEL[c.Status] || c.Status) + '</span></div>';
+        }).join('');
+      }
+
+      render(
+        '<h5>สวัสดีคุณ' + esc(m.DisplayName) + '</h5><span class="badge">สมาชิกเลขที่ ' + esc(m.MemberNo) + '</span>',
+        '<div class="row-line"><span>สังกัด</span><span>' + esc(m.Affiliation || '-') + '</span></div>' +
+        '<div class="row-line"><span>อายุการเป็นสมาชิก</span><span>' + (m.YearsOfMembership != null ? m.YearsOfMembership + ' ปี' : '-') + '</span></div>',
+        claimsHtml
+      );
+    }
+
+    boot().catch(function (err) {
+      document.getElementById('app').innerHTML = '<div class="center">เกิดข้อผิดพลาด: ' + esc(err.message || err) + '</div>';
+    });
+  </script>
+</body>
+</html>

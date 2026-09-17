@@ -1,0 +1,39 @@
+body { font-family: 'Sarabun', sans-serif; background-color: #f4f6f9; margin: 0; }
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: linear-gradient(135deg, #06c755, #049445); }
+.login-card { background: #fff; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.15); width: 100%; max-width: 380px; text-align: center; }
+.login-card .hint, .hint { font-size: .78rem; color: #888; }
+.redirect-uri-box, code.copyable { display: block; background: #f1f1f1; padding: 8px 10px; border-radius: 6px; word-break: break-all; font-size: .78rem; text-align: left; color: #333; }
+.navbar { background-color: #06c755; }
+.nav-tabs { flex-wrap: nowrap; overflow-x: auto; }
+.nav-tabs .nav-link { cursor: pointer; color: #495057; white-space: nowrap; }
+.nav-tabs .nav-link.active { font-weight: 600; color: #06c755; border-color: #dee2e6 #dee2e6 #fff; }
+.chat-shell { height: calc(100vh - 160px); background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.chat-thread-list { overflow-y: auto; height: 100%; }
+.thread-item { padding: 10px 12px; border-bottom: 1px solid #eee; cursor: pointer; }
+.thread-item:hover { background: #f8f9fa; }
+.thread-item.active { background: #e7f7ee; }
+.thread-item .name { font-weight: 600; font-size: .92rem; }
+.thread-item .preview { font-size: .8rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-item .unread { float: right; background: #dc3545; color: #fff; border-radius: 10px; padding: 0 6px; font-size: .7rem; }
+.chat-header { background: #fafafa; border-bottom: 1px solid #eee; font-weight: 600; }
+.chat-messages { overflow-y: auto; }
+.bubble { max-width: 70%; padding: 8px 12px; border-radius: 14px; margin-bottom: 8px; font-size: .9rem; white-space: pre-wrap; word-break: break-word; }
+.bubble.in { background: #f1f0f0; margin-right: auto; }
+.bubble.out { background: #06c755; color: #fff; margin-left: auto; }
+.bubble small { display: block; opacity: .6; font-size: .7rem; margin-top: 4px; }
+.table-wrap { overflow-x: auto; }
+table.table { font-size: .88rem; }
+
+/* setup.html */
+.wrap { max-width: 640px; margin: 30px auto; padding: 0 16px 60px; }
+.card { border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 16px; }
+.card-header { font-weight: 700; background: #06c755; color: #fff; border-radius: 12px 12px 0 0 !important; }
+.wrap label { font-weight: 600; font-size: .9rem; }
+
+@media (max-width: 767px) {
+  .chat-shell { height: auto; }
+  .chat-shell > [class*="col-"] { width: 100%; }
+  .chat-thread-list { max-height: 35vh; border-right: 0 !important; border-bottom: 1px solid #dee2e6; }
+  .chat-messages { min-height: 40vh; max-height: 50vh; }
+  .bubble { max-width: 85%; }
+}

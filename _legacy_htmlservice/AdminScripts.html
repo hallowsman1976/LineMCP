@@ -1,0 +1,251 @@
+<script>
+  // กัน race condition: หน้าเว็บโหลด/รัน inline script เร็วกว่า Apps Script bridge (google.script.run) จะพร้อมใช้
+  function waitForGasRun_() {
+    return new Promise(function (resolve, reject) {
+      var tries = 0;
+      (function check() {
+        if (window.google && window.google.script && window.google.script.run) return resolve();
+        if (++tries > 100) return reject(new Error('เชื่อมต่อระบบไม่สำเร็จ กรุณารีเฟรชหน้าใหม่ (Apps Script bridge โหลดไม่ทัน)'));
+        setTimeout(check, 50);
+      })();
+    });
+  }
+
+  function rpc(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return waitForGasRun_().then(function () {
+      return new Promise(function (resolve, reject) {
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[name].apply(null, args);
+      });
+    });
+  }
+
+  var TOKEN = localStorage.getItem('lmcp_token') || '';
+  var ROLE = localStorage.getItem('lmcp_role') || '';
+  var NAME = localStorage.getItem('lmcp_name') || '';
+  var activeThreadId = null;
+  var pollTimer = null;
+
+  function doLogout() {
+    rpc('logoutAdmin', TOKEN).finally(function () {
+      localStorage.removeItem('lmcp_token');
+      localStorage.removeItem('lmcp_role');
+      localStorage.removeItem('lmcp_name');
+      location.reload();
+    });
+  }
+
+  function showError(res) {
+    Swal.fire('ผิดพลาด', (res && res.message) || 'เกิดข้อผิดพลาด', 'error');
+  }
+
+  function boot() {
+    if (!TOKEN) { document.getElementById('loginScreen').classList.remove('d-none'); return; }
+    document.getElementById('appScreen').classList.remove('d-none');
+    document.getElementById('meLabel').textContent = NAME + ' (' + (ROLE === 'ADMIN_FULL' ? 'แอดมินเต็ม' : 'เจ้าหน้าที่ตอบแชท') + ')';
+    if (ROLE === 'ADMIN_FULL') {
+      document.getElementById('adminsTabItem').classList.remove('d-none');
+      document.getElementById('settingsLink').classList.remove('d-none');
+    }
+
+    document.querySelectorAll('#mainTabs .nav-link').forEach(function (btn) {
+      btn.addEventListener('click', function () { switchTab(btn.dataset.tab); });
+    });
+
+    switchTab('inbox');
+    loadThreads();
+    pollTimer = setInterval(function () {
+      loadThreads();
+      if (activeThreadId) loadMessages(activeThreadId, true);
+    }, 18000); // poll ทุก 18 วินาที ตามที่ตกลงไว้ (15-20s)
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('#mainTabs .nav-link').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === tab); });
+    document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.add('d-none'); });
+    document.getElementById('tab-' + tab).classList.remove('d-none');
+    if (tab === 'welfare') loadClaims();
+    if (tab === 'slips') loadSlips();
+    if (tab === 'members') loadMembers();
+    if (tab === 'admins') loadAdmins();
+  }
+
+  // ---------- Inbox ----------
+
+  function loadThreads() {
+    rpc('listChatThreads', TOKEN).then(function (res) {
+      if (!res.ok) return showError(res);
+      var el = document.getElementById('threadList');
+      var totalUnread = 0;
+      el.innerHTML = res.threads.map(function (t) {
+        totalUnread += Number(t.UnreadCount || 0);
+        return '<div class="thread-item' + (t.LineUserId === activeThreadId ? ' active' : '') + '" onclick="openThread(\'' + t.LineUserId + '\')">' +
+          '<div class="name">' + esc(t.MemberName || t.LineUserId) + (t.UnreadCount > 0 ? '<span class="unread">' + t.UnreadCount + '</span>' : '') + '</div>' +
+          '<div class="preview">' + esc(t.LastMessageText || '') + '</div></div>';
+      }).join('') || '<div class="p-3 text-muted small">ยังไม่มีการสนทนา</div>';
+      var badge = document.getElementById('badgeUnread');
+      if (totalUnread > 0) { badge.textContent = totalUnread; badge.classList.remove('d-none'); }
+      else badge.classList.add('d-none');
+    });
+  }
+
+  function openThread(lineUserId) {
+    activeThreadId = lineUserId;
+    document.getElementById('chatInputWrap').classList.remove('d-none');
+    loadThreads();
+    loadMessages(lineUserId, false);
+    rpc('markThreadRead', TOKEN, lineUserId).then(loadThreads);
+  }
+
+  function loadMessages(lineUserId, silent) {
+    rpc('getThreadMessages', TOKEN, lineUserId, 200).then(function (res) {
+      if (!res.ok) { if (!silent) showError(res); return; }
+      var el = document.getElementById('chatMessages');
+      var wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+      document.getElementById('chatHeader').textContent = res.messages.length ? (res.messages[0].MemberNo ? 'สมาชิกเลขที่ ' + res.messages[0].MemberNo : lineUserId) : lineUserId;
+      el.innerHTML = res.messages.map(function (m) {
+        var t = m.MsgType === 'text' ? esc(m.Text) : '[' + esc(m.MsgType) + '] ' + esc(m.Text || '');
+        return '<div class="bubble ' + (m.Direction === 'IN' ? 'in' : 'out') + '">' + t +
+          '<small>' + new Date(m.CreatedAt).toLocaleString('th-TH') + (m.HandledBy ? ' · ' + esc(m.HandledBy) : '') + '</small></div>';
+      }).join('');
+      if (!silent || wasAtBottom) el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  function doSendReply(ev) {
+    ev.preventDefault();
+    var input = document.getElementById('replyText');
+    var text = input.value.trim();
+    if (!text || !activeThreadId) return false;
+    input.value = '';
+    rpc('sendChatReply', TOKEN, activeThreadId, text).then(function (res) {
+      if (!res.ok) return showError(res);
+      loadMessages(activeThreadId, true);
+      loadThreads();
+    });
+    return false;
+  }
+
+  // ---------- Welfare claims ----------
+
+  var STATUS_LABEL = { DRAFT: 'รอส่งเอกสาร', SUBMITTED: 'รอตรวจสอบ', UNDER_REVIEW: 'กำลังตรวจสอบ', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', PAID: 'จ่ายเงินแล้ว' };
+
+  function loadClaims() {
+    var status = document.getElementById('welfareStatusFilter').value;
+    rpc('listWelfareClaims', TOKEN, status).then(function (res) {
+      if (!res.ok) return showError(res);
+      document.getElementById('claimsBody').innerHTML = res.claims.map(function (c) {
+        var actions = '';
+        if (ROLE === 'ADMIN_FULL' && (c.Status === 'SUBMITTED' || c.Status === 'UNDER_REVIEW')) {
+          actions = '<button class="btn btn-sm btn-success me-1" onclick="doReview(\'' + c.ClaimId + '\',\'APPROVED\')">อนุมัติ</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="doReview(\'' + c.ClaimId + '\',\'REJECTED\')">ไม่อนุมัติ</button>';
+        } else if (ROLE === 'ADMIN_FULL' && c.Status === 'APPROVED') {
+          actions = '<button class="btn btn-sm btn-primary" onclick="doMarkPaid(\'' + c.ClaimId + '\')">บันทึกจ่ายเงินแล้ว</button>';
+        }
+        return '<tr><td>' + c.ClaimId + '</td><td>' + esc(c.MemberName) + ' (' + c.MemberNo + ')</td><td>' + esc(c.TypeLabel) +
+          '</td><td>' + Number(c.AmountBaht).toLocaleString() + ' บาท</td><td>' + c.DocCount + ' ไฟล์</td>' +
+          '<td>' + new Date(c.SubmittedAt).toLocaleDateString('th-TH') + '</td>' +
+          '<td>' + new Date(c.DeadlineDate).toLocaleDateString('th-TH') + '</td>' +
+          '<td><span class="badge bg-secondary">' + (STATUS_LABEL[c.Status] || c.Status) + '</span></td>' +
+          '<td>' + actions + '</td></tr>';
+      }).join('') || '<tr><td colspan="9" class="text-center text-muted py-3">ไม่มีรายการ</td></tr>';
+    });
+  }
+
+  function doReview(claimId, decision) {
+    Swal.fire({
+      title: decision === 'APPROVED' ? 'ยืนยันการอนุมัติ' : 'ยืนยันไม่อนุมัติ',
+      input: 'text', inputPlaceholder: 'หมายเหตุ (ถ้ามี)',
+      showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก'
+    }).then(function (r) {
+      if (!r.isConfirmed) return;
+      rpc('reviewWelfareClaim', TOKEN, claimId, decision, r.value || '').then(function (res) {
+        if (!res.ok) return showError(res);
+        Swal.fire('สำเร็จ', 'บันทึกผลแล้ว', 'success');
+        loadClaims();
+      });
+    });
+  }
+
+  function doMarkPaid(claimId) {
+    rpc('markClaimPaid', TOKEN, claimId).then(function (res) {
+      if (!res.ok) return showError(res);
+      loadClaims();
+    });
+  }
+
+  // ---------- Payment slips ----------
+
+  function loadSlips() {
+    rpc('listPaymentSlips', TOKEN, '').then(function (res) {
+      if (!res.ok) return showError(res);
+      document.getElementById('slipsBody').innerHTML = res.slips.map(function (s) {
+        var action = s.Status === 'NEW' ? '<button class="btn btn-sm btn-primary" onclick="doMarkSlip(\'' + s.SlipId + '\')">บันทึกยอดแล้ว</button>' : '';
+        return '<tr><td>' + s.SlipId + '</td><td>' + s.MemberNo + '</td><td>' + new Date(s.UploadedAt).toLocaleString('th-TH') +
+          '</td><td><span class="badge bg-' + (s.Status === 'NEW' ? 'warning' : 'success') + '">' + s.Status + '</span></td><td>' + action + '</td></tr>';
+      }).join('') || '<tr><td colspan="5" class="text-center text-muted py-3">ไม่มีรายการ</td></tr>';
+    });
+  }
+
+  function doMarkSlip(slipId) {
+    rpc('markSlipRecorded', TOKEN, slipId).then(function (res) {
+      if (!res.ok) return showError(res);
+      loadSlips();
+    });
+  }
+
+  // ---------- Members ----------
+
+  function loadMembers() {
+    var q = document.getElementById('memberSearch').value;
+    rpc('listMembers', TOKEN, q).then(function (res) {
+      if (!res.ok) return showError(res);
+      document.getElementById('membersBody').innerHTML = res.members.map(function (m) {
+        return '<tr><td>' + m.MemberNo + '</td><td>' + esc((m.Title || '') + (m.FirstName || '') + ' ' + (m.LastName || '')) +
+          '</td><td>' + esc(m.Affiliation || '') + '</td><td>' + (m.LineUserId ? '✅' : '—') + '</td></tr>';
+      }).join('') || '<tr><td colspan="4" class="text-center text-muted py-3">ไม่มีรายการ</td></tr>';
+    });
+  }
+
+  // ---------- Admins ----------
+
+  function loadAdmins() {
+    rpc('listAdmins', TOKEN).then(function (res) {
+      if (!res.ok) return showError(res);
+      document.getElementById('adminsBody').innerHTML = res.admins.map(function (a) {
+        return '<tr><td>' + a.LineUserId + '</td><td>' + esc(a.DisplayName) + '</td><td>' + (a.Role === 'ADMIN_FULL' ? 'แอดมินเต็ม' : 'เจ้าหน้าที่ตอบแชท') +
+          '</td><td>' + (String(a.Active) !== 'false' ? 'เปิดใช้งาน' : 'ปิดใช้งาน') + '</td>' +
+          '<td><button class="btn btn-sm btn-outline-secondary" onclick="doToggleAdmin(\'' + a.LineUserId + '\',' + (String(a.Active) === 'false') + ')">' +
+          (String(a.Active) !== 'false' ? 'ปิดใช้งาน' : 'เปิดใช้งาน') + '</button></td></tr>';
+      }).join('');
+    });
+  }
+
+  function doAddAdmin() {
+    var id = document.getElementById('newAdminId').value.trim();
+    var name = document.getElementById('newAdminName').value.trim();
+    var role = document.getElementById('newAdminRole').value;
+    if (!id) return Swal.fire('ผิดพลาด', 'กรุณาระบุ LINE User ID', 'error');
+    rpc('addAdmin', TOKEN, id, name, role).then(function (res) {
+      if (!res.ok) return showError(res);
+      document.getElementById('newAdminId').value = '';
+      document.getElementById('newAdminName').value = '';
+      loadAdmins();
+    });
+  }
+
+  function doToggleAdmin(id, activate) {
+    rpc('setAdminActive', TOKEN, id, activate).then(function (res) {
+      if (!res.ok) return showError(res);
+      loadAdmins();
+    });
+  }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  boot();
+</script>

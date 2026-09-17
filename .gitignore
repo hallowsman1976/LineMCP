@@ -1,0 +1,9 @@
+# ข้อมูลสมาชิกจริง (เลขบัตรประชาชน ฯลฯ) — ห้ามขึ้น GitHub เด็ดขาด
+Member.xlsx
+member_import_template.csv
+*.xlsx
+*.csv
+
+# clasp credentials
+.clasprc.json
+node_modules/
