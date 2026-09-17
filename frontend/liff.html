@@ -37,6 +37,26 @@
     var esc = lmcp.esc;
     var STATUS_LABEL = { DRAFT: 'รอส่งเอกสาร', SUBMITTED: 'รอตรวจสอบ', UNDER_REVIEW: 'กำลังตรวจสอบ', APPROVED: 'อนุมัติแล้ว', REJECTED: 'ไม่อนุมัติ', PAID: 'จ่ายเงินแล้ว' };
 
+    // ⚠️ TODO: ใส่ช่องทางติดต่อเจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคลของสหกรณ์จริงตรง [กรุณาระบุ] ก่อนเปิดใช้งานจริง
+    var PDPA_NOTICE_HTML =
+      '<h5>ประกาศความเป็นส่วนตัว (Privacy Notice)</h5>' +
+      '<p class="muted">สำหรับสมาชิกสหกรณ์ออมทรัพย์สาธารณสุขจังหวัดมุกดาหาร</p>' +
+      '<p>สหกรณ์ออมทรัพย์สาธารณสุขจังหวัดมุกดาหาร ("สหกรณ์") ในฐานะผู้ควบคุมข้อมูลส่วนบุคคล ขอแจ้งให้ท่านทราบเกี่ยวกับการเก็บรวบรวม ใช้ ' +
+      'และเปิดเผยข้อมูลส่วนบุคคลของท่านผ่านระบบ LINE Official Account ของสหกรณ์ ดังนี้</p>' +
+      '<p><b>1. ข้อมูลที่เก็บรวบรวม</b><br>' +
+      'เลขที่สมาชิกและเลขประจำตัวประชาชน (ใช้ยืนยันตัวตนเท่านั้น), LINE User ID และข้อมูลโปรไฟล์ LINE (ชื่อที่แสดง/รูปโปรไฟล์), ' +
+      'และประวัติการใช้งานที่ท่านส่งผ่านระบบ เช่น คำขอรับสวัสดิการ หรือหลักฐานการโอนเงิน</p>' +
+      '<p><b>2. วัตถุประสงค์</b><br>' +
+      'เพื่อยืนยันตัวตนความเป็นสมาชิกก่อนให้บริการผ่านระบบ เพื่อดำเนินการตามคำขอของท่าน และเพื่อจัดเก็บหลักฐาน/ประวัติธุรกรรมตามข้อบังคับสหกรณ์</p>' +
+      '<p><b>3. ระยะเวลาเก็บรักษา</b><br>' +
+      'ตลอดระยะเวลาที่ท่านเป็นสมาชิกสหกรณ์ และต่อไปตามระยะเวลาที่กฎหมายหรือข้อบังคับสหกรณ์กำหนด</p>' +
+      '<p><b>4. การเปิดเผยข้อมูล</b><br>' +
+      'สหกรณ์จะไม่เปิดเผยข้อมูลส่วนบุคคลของท่านแก่บุคคลภายนอก เว้นแต่ได้รับความยินยอมจากท่าน หรือเป็นกรณีที่กฎหมายกำหนด</p>' +
+      '<p><b>5. สิทธิของท่าน</b><br>' +
+      'ท่านมีสิทธิขอเข้าถึง แก้ไข ลบ ระงับการใช้ หรือเพิกถอนความยินยอมที่ให้ไว้ รวมถึงร้องเรียนต่อหน่วยงานที่เกี่ยวข้องได้ตลอดเวลา ' +
+      'โดยติดต่อ [กรุณาระบุช่องทางติดต่อเจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคลของสหกรณ์ เช่น อีเมลหรือเบอร์โทร]</p>' +
+      '<p class="muted">การกด "ยินยอม" ด้านล่าง ถือว่าท่านได้อ่านและรับทราบประกาศฉบับนี้ และยินยอมให้สหกรณ์เก็บรวบรวม/ใช้ข้อมูลของท่านเพื่อวัตถุประสงค์การยืนยันตัวตนสมาชิกตามที่ระบุไว้</p>';
+
     function show(html) { document.getElementById('app').innerHTML = html; }
 
     function card(html) { return '<div class="card">' + html + '</div>'; }
@@ -75,7 +95,35 @@
       );
     }
 
-    function renderUnverified(profile, decoded, idToken, errorMsg) {
+    function renderPdpaGate(profile, decoded, idToken) {
+      show(
+        card(profileRow(profile, decoded.name || 'สมาชิก')) +
+        card(
+          PDPA_NOTICE_HTML +
+          '<div style="margin-top:16px;">' +
+            '<button id="pdpaAccept" class="btn">ยินยอม และดำเนินการต่อ</button> ' +
+            '<button id="pdpaDecline" type="button" class="btn btn-outline">ไม่ยินยอม</button>' +
+          '</div>'
+        )
+      );
+      document.getElementById('pdpaAccept').addEventListener('click', function () {
+        renderUnverified(profile, decoded, idToken, null, true);
+      });
+      document.getElementById('pdpaDecline').addEventListener('click', function () {
+        show(
+          card(profileRow(profile, decoded.name || 'สมาชิก')) +
+          card(
+            '<p class="muted">หากไม่ยินยอม จะไม่สามารถยืนยันตัวตนผ่านฟอร์มในหน้านี้ได้ แต่ยังยืนยันตัวตนผ่านแชทของสหกรณ์ได้ตามปกติ ' +
+            'โดยพิมพ์ "เลขที่สมาชิก เลขบัตรประชาชน"</p>' +
+            chatBackButtonHtml()
+          )
+        );
+      });
+    }
+
+    function renderUnverified(profile, decoded, idToken, errorMsg, pdpaAccepted) {
+      if (!pdpaAccepted) { renderPdpaGate(profile, decoded, idToken); return; }
+
       show(
         card(profileRow(profile, decoded.name || 'สมาชิก')) +
         card(
@@ -100,9 +148,9 @@
         var btn = form.querySelector('button[type="submit"]');
         btn.disabled = true;
         btn.textContent = 'กำลังยืนยัน...';
-        lmcp.api('linkMember', { idToken: idToken, memberNo: memberNo, nationalId: nationalId }).then(function (res) {
+        lmcp.api('linkMember', { idToken: idToken, memberNo: memberNo, nationalId: nationalId, pdpaConsent: true }).then(function (res) {
           if (!res.ok) {
-            renderUnverified(profile, decoded, idToken, res.message);
+            renderUnverified(profile, decoded, idToken, res.message, true);
             return;
           }
           return lmcp.api('getMyStatus', { idToken: idToken }).then(function (statusRes) {
@@ -113,7 +161,7 @@
             }
           });
         }).catch(function (err) {
-          renderUnverified(profile, decoded, idToken, err.message || 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่');
+          renderUnverified(profile, decoded, idToken, err.message || 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่', true);
         });
       });
     }

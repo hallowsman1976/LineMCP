@@ -47,7 +47,7 @@ var API_ACTIONS = {
 
   // ---------- สมาชิก (LIFF) — ยืนยันตัวตนด้วย LINE ID token ไม่เชื่อ userId ที่ client ส่งมาเอง ----------
   getMyStatus: function (a) { return getMyStatusApi_(a.idToken); },
-  linkMember: function (a) { return linkMemberApi_(a.idToken, a.memberNo, a.nationalId); }
+  linkMember: function (a) { return linkMemberApi_(a.idToken, a.memberNo, a.nationalId, a.pdpaConsent); }
 };
 
 function isApiRequest_(e) {
@@ -139,13 +139,14 @@ function getMyStatusApi_(idToken) {
   }
 }
 
-/** หน้า "สถานะของฉัน" — ฟอร์มยืนยันตัวตนในหน้า LIFF (คู่ขนานกับการพิมพ์ยืนยันในแชท) */
-function linkMemberApi_(idToken, memberNo, nationalId) {
+/** หน้า "สถานะของฉัน" — ฟอร์มยืนยันตัวตนในหน้า LIFF (คู่ขนานกับการพิมพ์ยืนยันในแชท) ต้องผ่านหน้ายินยอม PDPA มาก่อนเสมอ */
+function linkMemberApi_(idToken, memberNo, nationalId, pdpaConsent) {
+  if (pdpaConsent !== true) return { ok: false, message: 'กรุณายินยอมนโยบายความเป็นส่วนตัว (PDPA) ก่อนยืนยันตัวตน' };
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return { ok: false, message: 'ระบบกำลังประมวลผลคำขออื่น กรุณาลองใหม่ในอีกสักครู่' };
   try {
     var lineUserId = verifyLineIdToken_(idToken);
-    verifyAndLinkMember_(lineUserId, memberNo, nationalId);
+    verifyAndLinkMember_(lineUserId, memberNo, nationalId, true);
     var profileRes = getMyMemberProfile_(lineUserId); // sanitize + คำนวณ DisplayName/YearsOfMembership แบบเดียวกับ getMyStatus
     return { ok: true, member: profileRes.member };
   } catch (err) {

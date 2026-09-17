@@ -148,7 +148,7 @@ function ensureSchema() {
 
   var members = ensureSheet_(ss, SHEET_NAMES.MEMBERS, [
     'MemberNo', 'Title', 'FirstName', 'LastName', 'NationalId', 'Affiliation',
-    'JoinDate', 'BirthDate', 'Phone', 'LineUserId', 'LinkedAt', 'CreatedAt', 'UpdatedAt'
+    'JoinDate', 'BirthDate', 'Phone', 'LineUserId', 'LinkedAt', 'PDPAConsentAt', 'CreatedAt', 'UpdatedAt'
   ]);
   ensureTextColumn_(members, 'MemberNo');
   ensureTextColumn_(members, 'NationalId');

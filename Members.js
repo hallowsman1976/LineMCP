@@ -92,8 +92,9 @@ function findMemberByLineUserId_(lineUserId) {
 /**
  * ยืนยันตัวตนสมาชิกครั้งแรกทาง LINE: เลขที่สมาชิก + เลขบัตรประชาชน ต้องตรงกับฐานข้อมูล
  * สำเร็จ -> ผูก LineUserId เข้ากับ record นั้น (record หนึ่งผูกได้ครั้งเดียว กัน LINE ของคนอื่นมาสวมรอย)
+ * recordPdpaConsent = true เฉพาะทาง LIFF (ผ่านหน้ายินยอม PDPA มาก่อน) — ทางแชทไม่ส่งพารามิเตอร์นี้ จึงไม่บันทึก
  */
-function verifyAndLinkMember_(lineUserId, memberNo, nationalId) {
+function verifyAndLinkMember_(lineUserId, memberNo, nationalId, recordPdpaConsent) {
   memberNo = normalizeMemberNo_(memberNo);
   nationalId = String(nationalId || '').replace(/\D/g, '');
 
@@ -119,11 +120,13 @@ function verifyAndLinkMember_(lineUserId, memberNo, nationalId) {
     throw new Error('บัญชี LINE นี้ถูกผูกกับสมาชิกเลขที่ ' + already.MemberNo + ' ไปแล้ว ติดต่อเจ้าหน้าที่หากต้องการแก้ไข');
   }
 
-  updateRowByHeaders_(sheet, match.__rowIndex, {
+  var patch = {
     LineUserId: lineUserId,
     LinkedAt: nowIso_(),
     UpdatedAt: nowIso_()
-  });
+  };
+  if (recordPdpaConsent) patch.PDPAConsentAt = nowIso_();
+  updateRowByHeaders_(sheet, match.__rowIndex, patch);
   SpreadsheetApp.flush();
   return findMemberByNo_(memberNo);
 }
