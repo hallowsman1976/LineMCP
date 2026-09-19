@@ -39,6 +39,7 @@
     .muted { color: var(--color-text-muted); }
     .center { text-align: center; padding: 60px 20px; color: var(--color-text-muted); font-size: .95rem; line-height: 1.7; }
     .spinner { width: 34px; height: 34px; margin: 0 auto 16px; border-radius: 50%; border: 3px solid var(--color-border); border-top-color: var(--color-primary); animation: spin .7s linear infinite; }
+    .btn-spinner { width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; animation: spin .6s linear infinite; flex: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .btn { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 4px; padding: 13px 20px; border: 0; border-radius: var(--radius-sm); background: var(--color-primary); color: #fff; font: inherit; font-size: .95rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: background-color .15s ease, opacity .15s ease; }
     .btn:hover { background: var(--color-primary-dark); }
@@ -180,7 +181,7 @@
         var nationalId = form.nationalId.value.trim();
         var btn = form.querySelector('button[type="submit"]');
         btn.disabled = true;
-        btn.textContent = 'กำลังยืนยัน...';
+        btn.innerHTML = '<span class="btn-spinner"></span>กำลังยืนยัน...';
         lmcp.api('linkMember', { idToken: idToken, memberNo: memberNo, nationalId: nationalId, pdpaConsent: true }).then(function (res) {
           if (!res.ok) {
             renderUnverified(profile, decoded, idToken, res.message, true);
